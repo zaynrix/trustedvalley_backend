@@ -350,8 +350,4 @@ npm run dev   # dev
 npm start     # prod
 ```
 
----
-
-If you'd like, I can also add a short `docs/` folder with example Postman/Thunder requests and a small integration test that asserts the register/login response shapes. Want me to add that now?
-
 ````
