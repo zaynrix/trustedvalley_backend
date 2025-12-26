@@ -1,0 +1,5 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+todo-backend,com.example.todo.controller,TodoController,14,16,0,0,3,3,2,3,2,3
+todo-backend,com.example.todo.service,TodoService,10,42,0,0,1,8,2,5,2,5
+todo-backend,com.example.todo.model,Todo,0,33,0,0,0,11,0,8,0,8
+todo-backend,com.example.todo,TodoApplication,5,3,0,0,2,1,1,1,1,1
