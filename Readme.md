@@ -1,15 +1,13 @@
 # 🚀 Kafka Backend - Node.js
 
-Backend مبني بـ Node.js مع Apache Kafka لمشروع Flutter Platform.
+A Node.js backend built to work with a Flutter frontend and Apache Kafka. It uses PostgreSQL for persistent user/auth data and provides JWT-based authentication with role-based access control (0: Admin, 1: Trusted User, 2: Common User, 3: Betrug User).
 
-This repository is a Node.js backend built to work with a Flutter frontend and Apache Kafka. It uses PostgreSQL for persistent user/auth data and provides JWT-based authentication with role-based access control (0: Admin, 1: Trusted User, 2: Common User, 3: Betrug User).
+## 📋 Prerequisites
 
-## 📋 المتطلبات / Prerequisites
-
-- Node.js (v18 أو أحدث / v18 or later) ✅
+- Node.js (v18 or later)
 - PostgreSQL (running database)
 - Kafka & Zookeeper (optional for development)
-- VS Code ✅
+- VS Code (recommended)
 
 ## 🔧 Tech Stack
 
@@ -22,7 +20,7 @@ This repository is a Node.js backend built to work with a Flutter frontend and A
 - **i18next** - Internationalization (English, Arabic, German)
 - **Firebase Admin SDK** - For Firestore migration
 
-## 📦 التثبيت / Installation
+## 📦 Installation
 
 ### 1. Install Dependencies
 
@@ -190,7 +188,7 @@ Authorization: Bearer <token>
 ### 🔑 Password Management
 
 #### Forgot Password - POST `/api/auth/password/forgot`
-Request a password reset code (sent via email).
+Request a password reset code (sent via email). Rate limited to once per 15 minutes.
 
 ```bash
 POST http://localhost:3000/api/auth/password/forgot
@@ -208,7 +206,7 @@ Content-Type: application/json
 }
 ```
 
-**Note:** Rate limited - can only request once every 15 minutes.
+**Rate Limit:** Can only request once every 15 minutes. Returns `429` if rate limited.
 
 #### Confirm Reset - POST `/api/auth/password/confirm`
 Confirm reset with code and set new password.
@@ -225,6 +223,13 @@ Content-Type: application/json
 ```
 
 **Test Code:** Use `1232456` for testing (always works, no email required).
+
+**Response (200):**
+```json
+{
+  "message": "Password changed successfully"
+}
+```
 
 #### Change Password - POST `/api/auth/password/change`
 Change own password (requires authentication and current password).
