@@ -148,6 +148,64 @@
 - Password policy enforced: minimum length and character requirements (see implementation).
 - Implementation path: `src/auth/controllers/passwordController.js` route `POST /api/auth/password/confirm`.
 
+---
+
+## 📚 Full Endpoint Reference (generated from current routes)
+
+Base URL: `http://localhost:3000`
+
+Authentication header: `Authorization: Bearer <token>` where required.
+
+### Health
+- GET `/` — health check, public
+
+### Auth (mounted at `/api/auth`)
+- POST `/api/auth/register` — Register a new user (public)
+- POST `/api/auth/login` — Login with email/password (public)
+- GET `/api/auth/profile` — Get current user's profile (protected)
+- GET `/api/auth/admin` — Admin-only test endpoint (protected, role 0)
+- GET `/api/auth/guest` — Guest or higher access (protected, roles 0/1/2)
+
+Password management (auth):
+- POST `/api/auth/password/reset` — Admin-only reset any user's password (protected, role 0). Body: { email, newPassword }
+- POST `/api/auth/password/change` — Authenticated user changes own password (protected). Body: { currentPassword, newPassword }
+
+Password reset (public two-step):
+- POST `/api/auth/password/forgot` — Request a reset code by email (public). Body: { email }
+- POST `/api/auth/password/confirm` — Confirm code and set new password (public). Body: { email, code, newPassword }
+
+Admin user management:
+- GET `/api/auth/admin/users` — List users (protected, role 0). Query: ?limit=&offset=
+- GET `/api/auth/admin/users/:id` — Get user by id (protected, role 0)
+- POST `/api/auth/admin/users` — Create user (protected, role 0). Body: user fields
+- PUT `/api/auth/admin/users/:id` — Update user (protected, role 0)
+- DELETE `/api/auth/admin/users/:id` — Delete user (protected, role 0)
+
+### Users (mounted at `/api/users`)
+All endpoints require authentication (Bearer token):
+- GET `/api/users/me/profile` — Full user profile (protected)
+- GET `/api/users/me/contact` — Contact info subset (protected)
+- GET `/api/users/me/verification` — Verification flags (protected)
+- GET `/api/users/me/services` — Services/payment info (protected)
+- GET `/api/users/me/data` — Raw profile data + metadata (protected)
+
+### Content (mounted at `/api/content`)
+- GET `/api/content/home` — Get home content (public)
+- POST `/api/content/home` — Upsert home content (protected, admin role 0)
+- GET `/api/content/statistics` — List statistics items (public)
+- GET `/api/content/statistics/:id` — Get statistics item by id (public)
+- POST `/api/content/statistics` — Create statistics item (protected, admin)
+- PUT `/api/content/statistics/:id` — Update statistics item (protected, admin)
+- DELETE `/api/content/statistics/:id` — Delete statistics item (protected, admin)
+
+### Requests (mounted at `/api/requests`)
+- POST `/api/requests` — Create a request (public). Body: { userId, title, description, priority }
+- GET `/api/requests` — List requests (public)
+
+---
+
+If you want, I can expand each endpoint above with request/response examples and status codes (I can auto-fill from existing docs where available). Do you want the fully expanded reference placed in `API_ENDPOINTS.md` (replacing the current doc) or appended as a separate file like `API_REFERENCE.md`? Please tell me which format you prefer and I'll update accordingly.
+
 
 ---
 

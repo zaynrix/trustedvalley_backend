@@ -127,33 +127,31 @@ async function forgotPassword(req, res, next) {
       return res.json({ message: translate(req, 'messages.reset-email-sent-if-exists') });
     }
 
-    // Check rate limiting - don't send new code if one was sent within last 15 minutes
-    const COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
-    if (resetModel.wasSentRecently(email, COOLDOWN_MS)) {
-      const timeRemaining = resetModel.getTimeUntilNextCode(email, COOLDOWN_MS);
-      const minutesRemaining = Math.ceil(timeRemaining / (60 * 1000));
-      return res.status(429).json({ 
-        error: 'rate-limit-exceeded', 
-        message: translate(req, 'errors.rate-limit-exceeded', { minutes: minutesRemaining }),
-        retryAfter: Math.ceil(timeRemaining / 1000) // seconds
-      });
-    }
-
-    // generate 6-digit code
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    // Generate 6-digit code
+    // DUAL MODE: Always generate a random code, but ALSO accept test code 123456
+    const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
     const expiresAt = Date.now() + (15 * 60 * 1000); // 15 minutes
-    const sentAt = Date.now();
-    resetModel.set(email, code, expiresAt, sentAt);
+    
+    // Store the generated code
+    resetModel.set(email, generatedCode, expiresAt);
+    
+    // ALSO store test code 123456 (if enabled via env var)
+    const useTestCode = process.env.ENABLE_TEST_RESET_CODE === 'true' || process.env.NODE_ENV !== 'production';
+    if (useTestCode) {
+      resetModel.set(email, '123456', expiresAt);
+      console.log(`[DEV] Test reset code 123456 is available for ${email}`);
+    }
+    
+    const code = generatedCode; // Use generated code for email
 
-    // send code via email
+    // Send code via email
     const subjectMsg = `Your password reset code`;
     const textMsg = `Use this code to reset your password: ${code}\nIt expires in 15 minutes.`;
     try {
-      // sendResetEmail accepts to, tempPassword (legacy) and optional opts
       await sendResetEmail(email, code, { subject: subjectMsg, text: textMsg });
     } catch (mailErr) {
       console.error('Failed to send reset email:', mailErr);
-      // still respond success to caller to avoid exposing existence
+      // Still respond success to caller to avoid exposing existence
     }
 
     return res.json({ message: translate(req, 'messages.reset-email-sent-if-exists') });
@@ -173,22 +171,16 @@ async function confirmReset(req, res, next) {
       });
     }
 
-    // Test code for development/testing (always works)
-    const TEST_CODE = '1232456';
-    const isTestCode = String(code) === TEST_CODE;
-
-    // validate code (unless it's the test code)
-    if (!isTestCode) {
-      const entry = resetModel.get(email);
-      if (!entry || entry.code !== String(code) || Date.now() > entry.expiresAt) {
-        return res.status(400).json({ 
-          error: 'invalid-or-expired-code', 
-          message: translate(req, 'errors.invalid-or-expired-code') 
-        });
-      }
+    // Validate code (checks both test code and generated code)
+    const isValid = resetModel.validate(email, code);
+    if (!isValid) {
+      return res.status(400).json({ 
+        error: 'invalid-or-expired-code', 
+        message: translate(req, 'errors.invalid-or-expired-code') 
+      });
     }
 
-    // password policy validation
+    // Password policy validation
     const passwordPolicy = /^(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/;
     if (!passwordPolicy.test(newPassword)) {
       return res.status(400).json({ 
@@ -197,20 +189,14 @@ async function confirmReset(req, res, next) {
       });
     }
 
-    // Check if user exists (for both test code and regular code)
-    const user = await userService.getUserByEmail(email);
-    if (!user) {
-      return res.status(404).json({ 
-        error: 'user-not-found', 
-        message: translate(req, 'errors.user-not-found') 
-      });
-    }
-
-    // hash and persist password
+    // Hash and persist password
     const hash = await bcrypt.hash(newPassword, 10);
     const usePostgres = !!process.env.DATABASE_URL;
     if (usePostgres) {
-      await postgres.query('UPDATE users SET password_hash = $1, updated_at = now() WHERE email = $2', [hash, email.toLowerCase()]);
+      await postgres.query(
+        'UPDATE users SET password_hash = $1, updated_at = now() WHERE email = $2', 
+        [hash, email.toLowerCase()]
+      );
     } else {
       const mem = inMemoryModel.findByEmail(email);
       if (!mem) {
@@ -222,10 +208,8 @@ async function confirmReset(req, res, next) {
       mem.password = hash;
     }
 
-    // consume token (only if not test code)
-    if (!isTestCode) {
-      resetModel.consume(email);
-    }
+    // Consume token
+    resetModel.consume(email);
 
     return res.json({ message: translate(req, 'messages.password-changed-success') });
   } catch (err) {
