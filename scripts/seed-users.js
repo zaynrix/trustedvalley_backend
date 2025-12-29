@@ -16,9 +16,10 @@ async function run() {
       const samplePassword = process.env.SEED_USER_PASSWORD || 'Password123!';
 
       // Admin users to create
+      // Role mapping: 0=admin, 1=trusted, 2=common, 3=betrug
       const admins = [
-        { email: process.env.SEED_ADMIN_EMAIL || 'admin@trustedvalley.com', password: process.env.SEED_ADMIN_PASSWORD || 'Test123456$', role: 'admin', fullName: 'Admin User' },
-        { email: process.env.SEED_SUPERADMIN_EMAIL || 'superadmin@trustedvalley.com', password: process.env.SEED_SUPERADMIN_PASSWORD || 'Test123456$', role: 'superadmin', fullName: 'Super Admin' }
+        { email: process.env.SEED_ADMIN_EMAIL || 'admin@trustedvalley.com', password: process.env.SEED_ADMIN_PASSWORD || 'Test123456$', role: 0, fullName: 'Admin User' },
+        { email: process.env.SEED_SUPERADMIN_EMAIL || 'superadmin@trustedvalley.com', password: process.env.SEED_SUPERADMIN_PASSWORD || 'Test123456$', role: 0, fullName: 'Super Admin' }
       ];
       const bcrypt = require('bcrypt');
 
@@ -44,7 +45,7 @@ async function run() {
       await pool.query(
         `INSERT INTO users (id, full_name, email, password_hash, phone_number, additional_phone, location, services, service_payment_methods, reference_number, money_transfer_services, profile, role, status, created_at, updated_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-        [id, 'Seed User', sampleEmail, passwordHash, null, null, null, null, null, null, null, profile, 'user', 'pending', now, now]
+        [id, 'Seed User', sampleEmail, passwordHash, null, null, null, null, null, null, null, profile, 2, 'pending', now, now]
       );
       console.log('Seed user inserted:', sampleEmail);
     }

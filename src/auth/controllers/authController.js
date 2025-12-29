@@ -1,4 +1,5 @@
 const userService = require('../services/userService');
+const { translate } = require('../../utils/i18n');
 
 async function register(req, res, next) {
   try {
@@ -18,7 +19,12 @@ async function register(req, res, next) {
     } = req.body || {};
 
     const finalFullName = fullName || name;
-    if (!finalFullName || !email || !password) return res.status(400).json({ error: 'fullName, email and password are required' });
+    if (!finalFullName || !email || !password) {
+      return res.status(400).json({ 
+        error: 'fields-required', 
+        message: translate(req, 'errors.fields-required') 
+      });
+    }
 
     const user = await userService.createUser({
       fullName: finalFullName,
@@ -40,18 +46,25 @@ async function register(req, res, next) {
   const sanitized = userService.sanitizeUserForClient(user);
   return token ? res.status(201).json({ token, user: sanitized }) : res.status(201).json({ user: sanitized });
   } catch (err) {
-    // map known errors to client-friendly messages (include substrings Flutter checks)
+    // map known errors to client-friendly messages with translations
     const message = (err && err.message) ? err.message : String(err);
-    if (message.includes('email-already-in-use') || message.includes('البريد الإلكتروني مستخدم بالفعل')) {
-      return res.status(409).json({ error: 'email-already-in-use - البريد الإلكتروني مستخدم بالفعل' });
+    if (message.includes('email-already-in-use')) {
+      return res.status(409).json({ 
+        error: 'email-already-in-use', 
+        message: translate(req, 'errors.email-already-in-use') 
+      });
     }
     if (message.includes('weak-password')) {
-      // Pass through the helpful message if present (format: 'weak-password: <human message>')
       const parts = message.split(':');
-      const human = parts.length > 1 ? parts.slice(1).join(':').trim() : 'Password does not meet policy';
+      const human = parts.length > 1 ? parts.slice(1).join(':').trim() : translate(req, 'errors.weak-password');
       return res.status(400).json({ error: 'weak-password', message: human });
     }
-    if (message.includes('invalid-email')) return res.status(400).json({ error: 'invalid-email' });
+    if (message.includes('invalid-email')) {
+      return res.status(400).json({ 
+        error: 'invalid-email', 
+        message: translate(req, 'errors.invalid-email') 
+      });
+    }
     // fallback
     next(err);
   }
@@ -60,7 +73,12 @@ async function register(req, res, next) {
 async function login(req, res, next) {
   try {
     const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
+    if (!email || !password) {
+      return res.status(400).json({ 
+        error: 'fields-required', 
+        message: translate(req, 'errors.email-required') + ', ' + translate(req, 'errors.password-required') 
+      });
+    }
 
   const user = await userService.validateCredentials(email, password);
 
@@ -74,10 +92,20 @@ async function login(req, res, next) {
     const token = user.token || null;
     return token ? res.json({ token, user: sanitized }) : res.json({ user: sanitized });
   } catch (err) {
-    // Provide clear responses for authentication errors
+    // Provide clear responses for authentication errors with translations
     const msg = (err && err.message) ? err.message : String(err);
-    if (msg.includes('user-not-found')) return res.status(404).json({ error: 'user-not-found', message: 'No account exists for that email' });
-    if (msg.includes('wrong-password')) return res.status(401).json({ error: 'wrong-password', message: 'The password is incorrect' });
+    if (msg.includes('user-not-found')) {
+      return res.status(404).json({ 
+        error: 'user-not-found', 
+        message: translate(req, 'errors.user-not-found') 
+      });
+    }
+    if (msg.includes('wrong-password')) {
+      return res.status(401).json({ 
+        error: 'wrong-password', 
+        message: translate(req, 'errors.wrong-password') 
+      });
+    }
     next(err);
   }
 }
@@ -88,11 +116,89 @@ async function profile(req, res) {
 }
 
 async function adminOnly(req, res) {
-  res.json({ message: 'Welcome, admin!', user: req.user });
+  res.json({ message: translate(req, 'messages.welcome-admin'), user: req.user });
 }
 
 async function guestPage(req, res) {
-  res.json({ message: 'Guest or higher access OK', user: req.user });
+  res.json({ message: translate(req, 'messages.guest-access-ok'), user: req.user });
 }
 
-module.exports = { register, login, profile, adminOnly, guestPage };
+// Admin: create user (including other admins)
+async function createUser(req, res, next) {
+  try {
+    const {
+      fullName,
+      name,
+      email,
+      password,
+      phoneNumber,
+      additionalPhone,
+      location,
+      services,
+      servicePaymentMethods,
+      referenceNumber,
+      moneyTransferServices,
+      role,
+      status
+    } = req.body || {};
+
+    const finalFullName = fullName || name;
+    if (!finalFullName || !email || !password) {
+      return res.status(400).json({ 
+        error: 'fields-required', 
+        message: translate(req, 'errors.fields-required') 
+      });
+    }
+
+    // Normalize role - admins can create users with any role (0, 1, 2, 3)
+    const normalizedRole = role !== undefined ? (typeof role === 'number' ? role : 
+      (role === 'admin' || role === 'superadmin' ? 0 :
+       role === 'trusted' || role === 'trusted_user' ? 1 :
+       role === 'betrug' || role === 'betrug_user' ? 3 : 2)) : 2;
+
+    const user = await userService.createUser({
+      fullName: finalFullName,
+      email,
+      password,
+      phoneNumber,
+      additionalPhone,
+      location,
+      services,
+      servicePaymentMethods,
+      referenceNumber,
+      moneyTransferServices,
+      role: normalizedRole
+    });
+
+    // Update status if provided
+    if (status) {
+      await userService.updateUser(user.id, { status });
+    }
+
+    // Return user without token (admin creating user, not logging in)
+    const sanitized = userService.sanitizeUserForClient(user);
+    return res.status(201).json({ user: sanitized });
+  } catch (err) {
+    const message = (err && err.message) ? err.message : String(err);
+    if (message.includes('email-already-in-use')) {
+      return res.status(409).json({ 
+        error: 'email-already-in-use', 
+        message: translate(req, 'errors.email-already-in-use') 
+      });
+    }
+    if (message.includes('weak-password')) {
+      const parts = message.split(':');
+      const human = parts.length > 1 ? parts.slice(1).join(':').trim() : translate(req, 'errors.weak-password');
+      return res.status(400).json({ error: 'weak-password', message: human });
+    }
+    if (message.includes('invalid-email')) {
+      return res.status(400).json({ 
+        error: 'invalid-email', 
+        message: translate(req, 'errors.invalid-email') 
+      });
+    }
+    next(err);
+  }
+}
+
+module.exports = { register, login, profile, adminOnly, guestPage, createUser };

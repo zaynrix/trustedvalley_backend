@@ -23,4 +23,7 @@ Thumbs.db
 
 # Build files
 dist/
-build/
+build/# Firebase credentials
+firebase-credentials.json
+firebase-service-account.json
+*-firebase*.json

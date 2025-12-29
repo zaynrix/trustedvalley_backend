@@ -1,12 +1,15 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { middleware: i18nMiddleware } = require('./src/utils/i18n');
 
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+// i18n middleware (must be before routes)
+app.use(i18nMiddleware);
 
 // Routes
 app.use('/api/auth', require('./src/routes/auth'));
@@ -29,15 +32,40 @@ app.get('/', (req, res) => {
 app.use((err, req, res, next) => {
   console.error(err && err.stack ? err.stack : err);
   const message = (err && err.message) ? err.message : String(err);
+  const { translate } = require('./src/utils/i18n');
 
-  // Auth and validation errors
-  if (message.includes('email-already-in-use')) return res.status(409).json({ error: 'email-already-in-use', message });
-  if (message.startsWith('weak-password')) return res.status(400).json({ error: 'weak-password', message: message.split(':').slice(1).join(':').trim() });
-  if (message.includes('invalid-email')) return res.status(400).json({ error: 'invalid-email', message });
-  if (message.includes('postgres-required')) return res.status(500).json({ error: 'postgres-required', message });
+  // Auth and validation errors (use translations)
+  if (message.includes('email-already-in-use')) {
+    return res.status(409).json({ 
+      error: 'email-already-in-use', 
+      message: translate(req, 'errors.email-already-in-use') 
+    });
+  }
+  if (message.startsWith('weak-password')) {
+    const customMessage = message.split(':').slice(1).join(':').trim();
+    return res.status(400).json({ 
+      error: 'weak-password', 
+      message: customMessage || translate(req, 'errors.weak-password') 
+    });
+  }
+  if (message.includes('invalid-email')) {
+    return res.status(400).json({ 
+      error: 'invalid-email', 
+      message: translate(req, 'errors.invalid-email') 
+    });
+  }
+  if (message.includes('postgres-required')) {
+    return res.status(500).json({ 
+      error: 'postgres-required', 
+      message: translate(req, 'errors.postgres-required') 
+    });
+  }
 
   // Fallback
-  res.status(500).json({ error: 'Something went wrong!', message });
+  res.status(500).json({ 
+    error: 'something-went-wrong', 
+    message: translate(req, 'errors.something-went-wrong') 
+  });
 });
 
 const PORT = process.env.PORT || 3000;

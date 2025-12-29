@@ -30,7 +30,7 @@ function mergeUserAndProfile(user) {
     fullName: user.fullName || user.name || profile.fullName || profile.displayName || null,
     name: user.name || user.fullName || profile.displayName || profile.fullName || null,
     email: (user.email || profile.email || '').toLowerCase() || null,
-    role: user.role || profile.role || 'user',
+    role: user.role !== undefined && user.role !== null ? normalizeRole(user.role) : (profile.role !== undefined && profile.role !== null ? normalizeRole(profile.role) : 2),
     status: user.status || profile.status || null,
     token: user.token || null
   };
@@ -56,7 +56,25 @@ function validateEmail(email) {
   return typeof email === 'string' && /\S+@\S+\.\S+/.test(email);
 }
 
-async function createUser({ fullName, email, password, phoneNumber, additionalPhone, location, services, servicePaymentMethods, referenceNumber, moneyTransferServices, role = 'user' }) {
+// Role mapping helper
+// 0 = admin, 1 = trusted user, 2 = common user, 3 = betrug user
+function normalizeRole(role) {
+  if (typeof role === 'number') {
+    return role >= 0 && role <= 3 ? role : 2; // Default to common user if invalid
+  }
+  if (typeof role === 'string') {
+    const roleMap = {
+      'admin': 0, 'superadmin': 0,
+      'trusted': 1, 'trusted_user': 1, 'trusteduser': 1,
+      'user': 2, 'common': 2, 'common_user': 2, 'commonuser': 2, 'guest': 2,
+      'betrug': 3, 'betrug_user': 3, 'betruguser': 3, 'fraud': 3, 'fraud_user': 3
+    };
+    return roleMap[role.toLowerCase()] !== undefined ? roleMap[role.toLowerCase()] : 2;
+  }
+  return 2; // Default to common user
+}
+
+async function createUser({ fullName, email, password, phoneNumber, additionalPhone, location, services, servicePaymentMethods, referenceNumber, moneyTransferServices, role = 2 }) {
   // validation
   if (!fullName || !email || !password) {
     throw new Error('missing-fields');
@@ -88,6 +106,7 @@ async function createUser({ fullName, email, password, phoneNumber, additionalPh
     const servicesJson = services ? JSON.stringify(services) : null;
     const servicePaymentMethodsJson = servicePaymentMethods ? JSON.stringify(servicePaymentMethods) : null;
     const mtServicesJson = moneyTransferServices ? JSON.stringify(moneyTransferServices) : null;
+    const normalizedRole = normalizeRole(role);
 
     // Build a profile object similar to the Firebase schema provided by the client
     const now = new Date().toISOString();
@@ -135,7 +154,7 @@ async function createUser({ fullName, email, password, phoneNumber, additionalPh
       referenceNumber: referenceNumber || '',
       registrationIpData: {},
       reviewedAt: null,
-      role: role === undefined ? 2 : role,
+      role: normalizeRole(role),
       servicePaymentMethods: servicePaymentMethods || [],
       services: services || [],
       showAddress: true,
@@ -163,10 +182,10 @@ async function createUser({ fullName, email, password, phoneNumber, additionalPh
     await postgres.query(
       `INSERT INTO users (id, full_name, email, password_hash, phone_number, additional_phone, location, services, service_payment_methods, reference_number, money_transfer_services, profile, role, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pending')`,
-      [id, fullName, email.toLowerCase(), password_hash, phoneNumber || null, additionalPhone || null, location || null, servicesJson ? servicesJson : null, servicePaymentMethodsJson ? servicePaymentMethodsJson : null, referenceNumber || null, mtServicesJson ? mtServicesJson : null, profile, role]
+      [id, fullName, email.toLowerCase(), password_hash, phoneNumber || null, additionalPhone || null, location || null, servicesJson ? servicesJson : null, servicePaymentMethodsJson ? servicePaymentMethodsJson : null, referenceNumber || null, mtServicesJson ? mtServicesJson : null, profile, normalizedRole]
     );
 
-    const user = { id, fullName, email: email.toLowerCase(), role, status: 'pending', profile };
+    const user = { id, fullName, email: email.toLowerCase(), role: normalizedRole, status: 'pending', profile };
     user.token = generateTokenForUser(user);
     return mergeUserAndProfile(user);
   }
@@ -222,7 +241,7 @@ async function createUser({ fullName, email, password, phoneNumber, additionalPh
     referenceNumber: referenceNumber || '',
     registrationIpData: {},
     reviewedAt: null,
-    role: role === undefined ? 2 : role,
+    role: normalizeRole(role),
     servicePaymentMethods: servicePaymentMethods || [],
     services: services || [],
     showAddress: true,
@@ -267,6 +286,18 @@ async function createUser({ fullName, email, password, phoneNumber, additionalPh
   inMemoryModel.add(user);
   user.token = generateTokenForUser({ id: user.id, email: user.email, role: user.role });
   return mergeUserAndProfile({ id: user.id, fullName: user.name, email: user.email, role: user.role, token: user.token, profile: user.profile });
+}
+
+async function getUserByEmail(email) {
+  if (!email) return null;
+  if (usePostgres) {
+    const res = await postgres.query('SELECT id, full_name, email, role, status, profile FROM users WHERE email = $1', [email.toLowerCase()]);
+    if (!res || !res.rows || res.rows.length === 0) return null;
+    const row = res.rows[0];
+    return mergeUserAndProfile({ id: row.id, fullName: row.full_name, email: row.email, role: row.role, status: row.status, profile: row.profile });
+  }
+  const found = inMemoryModel.findByEmail(email);
+  return mergeUserAndProfile(found);
 }
 
 async function validateCredentials(email, password) {
@@ -321,14 +352,197 @@ async function getUserByToken(token) {
 }
 
 // Admin helpers
-async function listUsers(limit = 100, offset = 0) {
+async function listUsers(limit = 100, offset = 0, simplified = true) {
   if (usePostgres) {
-    const res = await postgres.query('SELECT id, full_name, email, role, status, profile, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2', [limit, offset]);
-    return res.rows.map(r => mergeUserAndProfile({ id: r.id, fullName: r.full_name, email: r.email, role: r.role, status: r.status, profile: r.profile, createdAt: r.created_at, updatedAt: r.updated_at }));
+    if (simplified) {
+      // Return essential fields for list view including data from profile JSONB and trusted_users fields
+      const res = await postgres.query(
+        `SELECT 
+          id, 
+          full_name, 
+          email, 
+          phone_number,
+          additional_phone,
+          location,
+          services,
+          money_transfer_services,
+          role, 
+          status, 
+          application_type,
+          application_id,
+          application_submitted_at,
+          application_reviewed_at,
+          trusted_added_at,
+          moved_to_trusted_at,
+          action_by,
+          action_type,
+          action_reason,
+          last_action_at,
+          reviewed_by,
+          last_modified_by,
+          last_document_submission_date,
+          has_pending_document_requests,
+          profile,
+          created_at,
+          updated_at
+        FROM users 
+        ORDER BY created_at DESC 
+        LIMIT $1 OFFSET $2`, 
+        [limit, offset]
+      );
+      return res.rows.map(r => {
+        const profile = r.profile && typeof r.profile === 'object' ? r.profile : {};
+        
+        // Extract fields from profile JSONB
+        return {
+          id: r.id,
+          fullName: r.full_name || profile.fullName || profile.displayName || null,
+          displayName: profile.displayName || r.full_name || null,
+          email: r.email || profile.email || null,
+          phoneNumber: r.phone_number || profile.phoneNumber || null,
+          additionalPhone: r.additional_phone || profile.additionalPhone || null,
+          location: r.location || profile.location || profile.city || null,
+          services: r.services || profile.services || null,
+          moneyTransferServices: r.money_transfer_services || profile.moneyTransferServices || null,
+          role: r.role !== undefined && r.role !== null ? r.role : (profile.role !== undefined && profile.role !== null ? profile.role : 2),
+          status: r.status || profile.status || 'pending',
+          applicationStatus: r.status || profile.status || 'pending',
+          applicationType: r.application_type || profile.applicationType || null,
+          appliedDate: r.application_submitted_at || profile.submittedAt || profile.createdAt || r.created_at,
+          reviewedAt: r.application_reviewed_at || profile.reviewedAt || null,
+          approvalDate: profile.approvalDate || null,
+          // Trusted user fields
+          isTrustedUser: profile.isTrustedUser || profile.isTrusted || false,
+          addedToTrustedAt: r.trusted_added_at || profile.addedToTrustedAt || null,
+          movedToTrustedAt: r.moved_to_trusted_at || profile.movedToTrustedAt || null,
+          addedToTrustedTable: profile.addedToTrustedTable || false,
+          // Action tracking fields
+          applicationId: r.application_id || profile.applicationId || null,
+          actionBy: r.action_by || profile.actionBy || null,
+          actionType: r.action_type || profile.actionType || null,
+          actionReason: r.action_reason || profile.actionReason || null,
+          lastActionAt: r.last_action_at || profile.lastActionAt || null,
+          reviewedBy: r.reviewed_by || profile.reviewedBy || null,
+          lastModifiedBy: r.last_modified_by || profile.lastModifiedBy || null,
+          lastDocumentSubmissionDate: r.last_document_submission_date || profile.lastDocumentSubmissionDate || null,
+          hasPendingDocumentRequests: r.has_pending_document_requests !== null ? r.has_pending_document_requests : (profile.hasPendingDocumentRequests || false),
+          // Account status fields
+          isActive: profile.isActive !== undefined ? profile.isActive : true,
+          isApproved: profile.isApproved !== undefined ? profile.isApproved : false,
+          isBlocked: profile.isBlocked || false,
+          isVisible: profile.isVisible !== undefined ? profile.isVisible : false,
+          accountCreated: profile.accountCreated !== undefined ? profile.accountCreated : true,
+          // Verification status
+          verification: profile.verification || {
+            emailVerified: profile.emailVerified || false,
+            phoneVerified: profile.phoneVerified || false,
+            documentsSubmitted: profile.documentsSubmitted || false,
+            locationVerified: profile.locationVerified || false
+          },
+          // Dates
+          createdAt: profile.createdAt || r.created_at,
+          lastUpdated: profile.lastUpdated || profile.updatedAt || r.updated_at,
+          lastModificationDate: profile.lastModificationDate || null,
+          joinedDate: profile.joinedDate || profile.statistics?.joinedDate || r.created_at,
+          // Statistics (including trusted_users statistics fields)
+          statistics: {
+            joinedDate: profile.joinedDate || profile.statistics?.joinedDate || r.created_at,
+            rating: profile.rating || profile.statistics?.rating || 0,
+            totalReviews: profile.totalReviews || profile.statistics?.totalReviews || 0,
+            profileViews: profile.statistics?.profileViews || 0,
+            lastViewedAt: profile.statistics?.lastViewedAt || null,
+            submittedAt: profile.submittedAt || profile.statistics?.submittedAt || r.application_submitted_at || r.created_at
+          },
+          // Complex nested objects from profile
+          documentConfirmations: profile.documentConfirmations || null,
+          permissions: profile.permissions || null,
+          privacySettings: profile.privacySettings || null,
+          publicProfile: profile.publicProfile || null,
+          // Subscription
+          subscription: profile.subscription || null,
+          // Reference
+          referenceNumber: profile.referenceNumber || r.reference_number || null,
+          // Firebase UID
+          firebaseUid: profile.firebaseUid || profile.uid || null
+        };
+      });
+    } else {
+      // Return full user data (for backward compatibility if needed)
+      const res = await postgres.query('SELECT id, full_name, email, role, status, profile, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2', [limit, offset]);
+      return res.rows.map(r => mergeUserAndProfile({ id: r.id, fullName: r.full_name, email: r.email, role: r.role, status: r.status, profile: r.profile, createdAt: r.created_at, updatedAt: r.updated_at }));
+    }
   }
   // in-memory fallback
   const all = inMemoryModel.all();
   const slice = all.slice(offset, offset + limit);
+  if (simplified) {
+    return slice.map(u => {
+      const profile = u.profile || {};
+      return {
+        id: u.id,
+        fullName: u.fullName || u.name || profile.fullName || profile.displayName,
+        displayName: profile.displayName || u.fullName || u.name,
+        email: u.email || profile.email,
+        phoneNumber: u.phoneNumber || u.phone_number || profile.phoneNumber,
+        additionalPhone: profile.additionalPhone,
+        location: u.location || profile.location || profile.city,
+        services: u.services || profile.services,
+        moneyTransferServices: profile.moneyTransferServices,
+        role: u.role !== undefined && u.role !== null ? u.role : (profile.role !== undefined && profile.role !== null ? profile.role : 2),
+        status: u.status || profile.status || 'pending',
+        applicationStatus: u.status || profile.status || 'pending',
+        applicationType: profile.applicationType,
+        appliedDate: profile.submittedAt || profile.createdAt || u.createdAt,
+        reviewedAt: profile.reviewedAt,
+        approvalDate: profile.approvalDate,
+        isTrustedUser: profile.isTrustedUser || profile.isTrusted || false,
+        addedToTrustedAt: profile.addedToTrustedAt || profile.movedToTrustedAt,
+        addedToTrustedTable: profile.addedToTrustedTable || false,
+        isActive: profile.isActive !== undefined ? profile.isActive : true,
+        isApproved: profile.isApproved !== undefined ? profile.isApproved : false,
+        isBlocked: profile.isBlocked || false,
+        isVisible: profile.isVisible !== undefined ? profile.isVisible : false,
+        accountCreated: profile.accountCreated !== undefined ? profile.accountCreated : true,
+        verification: profile.verification || {
+          emailVerified: profile.emailVerified || false,
+          phoneVerified: profile.phoneVerified || false,
+          documentsSubmitted: profile.documentsSubmitted || false,
+          locationVerified: profile.locationVerified || false
+        },
+        createdAt: profile.createdAt || u.createdAt,
+        lastUpdated: profile.lastUpdated || profile.updatedAt || u.updatedAt,
+        lastModificationDate: profile.lastModificationDate,
+        joinedDate: profile.joinedDate || profile.statistics?.joinedDate || u.createdAt,
+        statistics: {
+          joinedDate: profile.joinedDate || profile.statistics?.joinedDate || u.createdAt,
+          rating: profile.rating || profile.statistics?.rating || 0,
+          totalReviews: profile.totalReviews || profile.statistics?.totalReviews || 0,
+          profileViews: profile.statistics?.profileViews || 0,
+          lastViewedAt: profile.statistics?.lastViewedAt || null,
+          submittedAt: profile.submittedAt || profile.statistics?.submittedAt || u.createdAt
+        },
+        subscription: profile.subscription || null,
+        referenceNumber: profile.referenceNumber,
+        firebaseUid: profile.firebaseUid || profile.uid,
+        // Trusted user action tracking fields
+        applicationId: profile.applicationId,
+        actionBy: profile.actionBy,
+        actionType: profile.actionType,
+        actionReason: profile.actionReason,
+        lastActionAt: profile.lastActionAt,
+        reviewedBy: profile.reviewedBy,
+        lastModifiedBy: profile.lastModifiedBy,
+        movedToTrustedAt: profile.movedToTrustedAt,
+        lastDocumentSubmissionDate: profile.lastDocumentSubmissionDate,
+        hasPendingDocumentRequests: profile.hasPendingDocumentRequests || false,
+        // Complex nested objects
+        documentConfirmations: profile.documentConfirmations || null,
+        permissions: profile.permissions || null,
+        privacySettings: profile.privacySettings || null,
+        publicProfile: profile.publicProfile || null
+      };
+    });
+  }
   return slice.map(u => mergeUserAndProfile({ id: u.id, fullName: u.fullName || u.name, email: u.email, role: u.role, status: u.status || null, profile: u.profile || {}, createdAt: u.createdAt, updatedAt: u.updatedAt }));
 }
 
@@ -346,14 +560,24 @@ async function getUserById(id) {
 async function updateUser(id, fields) {
   if (!id) throw new Error('invalid-user-id');
   if (usePostgres) {
-    // allow updating full_name, role, status, and profile (merge)
+    // allow updating full_name, role, status, profile, and password
     const updates = [];
     const vals = [];
     let idx = 1;
     if (fields.fullName) { updates.push(`full_name = $${idx++}`); vals.push(fields.fullName); }
-    if (fields.role) { updates.push(`role = $${idx++}`); vals.push(fields.role); }
+    if (fields.role !== undefined) { updates.push(`role = $${idx++}`); vals.push(normalizeRole(fields.role)); }
     if (fields.status) { updates.push(`status = $${idx++}`); vals.push(fields.status); }
     if (fields.profile) { updates.push(`profile = $${idx++}`); vals.push(fields.profile); }
+    if (fields.password) {
+      // Validate password policy
+      const passwordPolicy = /^(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/;
+      if (!passwordPolicy.test(fields.password)) {
+        throw new Error('weak-password: Password must be at least 8 characters long and include at least one uppercase letter and one special character');
+      }
+      const passwordHash = await bcrypt.hash(fields.password, 10);
+      updates.push(`password_hash = $${idx++}`); 
+      vals.push(passwordHash);
+    }
     if (updates.length === 0) return getUserById(id);
     vals.push(id);
     const q = `UPDATE users SET ${updates.join(',')}, updated_at = now() WHERE id = $${idx}`;
@@ -380,7 +604,7 @@ function sanitizeUserForClient(user) {
     id: user.id,
     email: user.email,
     fullName: user.fullName || user.name || (user.profile && user.profile.displayName) || null,
-    role: user.role || null,
+    role: user.role !== undefined && user.role !== null ? user.role : null, // Fix: handle role 0 correctly (0 is falsy)
     status: user.status || null,
     profileImageUrl: (user.profile && user.profile.profileImageUrl) || user.profileImageUrl || null,
     isApproved: (user.profile && typeof user.profile.isApproved !== 'undefined') ? user.profile.isApproved : (user.isApproved || false)
@@ -462,4 +686,22 @@ async function getRawProfile(userId) {
     updatedAt: r.updated_at
   };
 }
-module.exports = { createUser, validateCredentials, getUserByToken, listUsers, getUserById, updateUser, sanitizeUserForClient, getFullProfile, getContact, getVerification, getServices, getRawProfile };
+async function deleteUser(id) {
+  if (!id) throw new Error('invalid-user-id');
+  if (usePostgres) {
+    // Check if user exists
+    const user = await getUserById(id);
+    if (!user) return null;
+    
+    // Delete user
+    await postgres.query('DELETE FROM users WHERE id = $1', [id]);
+    return { id, deleted: true };
+  }
+  // in-memory fallback
+  const found = inMemoryModel.findById(id);
+  if (!found) return null;
+  inMemoryModel.delete(id);
+  return { id, deleted: true };
+}
+
+module.exports = { createUser, validateCredentials, getUserByEmail, getUserByToken, listUsers, getUserById, updateUser, deleteUser, sanitizeUserForClient, getFullProfile, getContact, getVerification, getServices, getRawProfile };

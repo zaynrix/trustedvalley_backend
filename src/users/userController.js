@@ -1,10 +1,16 @@
 const userService = require('../auth/services/userService');
+const { translate } = require('../utils/i18n');
 
 // GET /api/users/me/profile
 async function meProfile(req, res, next) {
   try {
     const userId = req.user && req.user.id;
-    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+    if (!userId) {
+      return res.status(401).json({ 
+        error: 'not-authenticated', 
+        message: translate(req, 'errors.not-authenticated') 
+      });
+    }
     const profile = await userService.getFullProfile(userId);
     return res.json({ profile });
   } catch (err) { next(err); }
@@ -14,7 +20,12 @@ async function meProfile(req, res, next) {
 async function meContact(req, res, next) {
   try {
     const userId = req.user && req.user.id;
-    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+    if (!userId) {
+      return res.status(401).json({ 
+        error: 'not-authenticated', 
+        message: translate(req, 'errors.not-authenticated') 
+      });
+    }
     const contact = await userService.getContact(userId);
     return res.json({ contact });
   } catch (err) { next(err); }
@@ -24,7 +35,12 @@ async function meContact(req, res, next) {
 async function meVerification(req, res, next) {
   try {
     const userId = req.user && req.user.id;
-    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+    if (!userId) {
+      return res.status(401).json({ 
+        error: 'not-authenticated', 
+        message: translate(req, 'errors.not-authenticated') 
+      });
+    }
     const verification = await userService.getVerification(userId);
     return res.json({ verification });
   } catch (err) { next(err); }
@@ -34,7 +50,12 @@ async function meVerification(req, res, next) {
 async function meServices(req, res, next) {
   try {
     const userId = req.user && req.user.id;
-    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+    if (!userId) {
+      return res.status(401).json({ 
+        error: 'not-authenticated', 
+        message: translate(req, 'errors.not-authenticated') 
+      });
+    }
     const services = await userService.getServices(userId);
     return res.json({ services });
   } catch (err) { next(err); }
@@ -44,9 +65,19 @@ async function meServices(req, res, next) {
 async function meData(req, res, next) {
   try {
     const userId = req.user && req.user.id;
-    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+    if (!userId) {
+      return res.status(401).json({ 
+        error: 'not-authenticated', 
+        message: translate(req, 'errors.not-authenticated') 
+      });
+    }
     const data = await userService.getRawProfile(userId);
-    if (!data) return res.status(404).json({ error: 'user-not-found' });
+    if (!data) {
+      return res.status(404).json({ 
+        error: 'user-not-found', 
+        message: translate(req, 'errors.user-not-found') 
+      });
+    }
     return res.json({ data });
   } catch (err) { next(err); }
 }

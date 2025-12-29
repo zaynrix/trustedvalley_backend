@@ -1,0 +1,44 @@
+{
+  "errors": {
+    "email-already-in-use": "البريد الإلكتروني مسجل بالفعل",
+    "weak-password": "يجب أن تكون كلمة المرور 8 أحرف على الأقل وتتضمن حرفًا كبيرًا واحدًا على الأقل ورمزًا خاصًا واحدًا على الأقل",
+    "invalid-email": "تنسيق البريد الإلكتروني غير صحيح",
+    "user-not-found": "لا يوجد حساب بهذا البريد الإلكتروني",
+    "wrong-password": "كلمة المرور غير صحيحة",
+    "email-required": "البريد الإلكتروني مطلوب",
+    "password-required": "كلمة المرور مطلوبة",
+    "fullname-required": "الاسم الكامل مطلوب",
+    "fields-required": "الاسم الكامل والبريد الإلكتروني وكلمة المرور مطلوبة",
+    "not-authenticated": "غير مصادق عليه",
+    "forbidden": "ممنوع: يلزم الوصول كمسؤول",
+    "insufficient-role": "ممنوع: الصلاحية غير كافية",
+    "missing-auth-token": "رمز التفويض مفقود",
+    "invalid-token": "رمز غير صالح أو منتهي الصلاحية",
+    "home-content-not-found": "محتوى الصفحة الرئيسية غير موجود",
+    "item-not-found": "العنصر غير موجود",
+    "not-found": "غير موجود",
+    "userid-title-required": "معرف المستخدم والعنوان مطلوبان",
+    "something-went-wrong": "حدث خطأ ما!",
+    "postgres-required": "قاعدة بيانات PostgreSQL مطلوبة",
+    "invalid-or-expired-code": "رمز إعادة التعيين غير صالح أو منتهي الصلاحية",
+    "rate-limit-exceeded": "يرجى الانتظار {{minutes}} دقيقة قبل طلب رمز إعادة تعيين جديد",
+    "invalid-or-expired-code": "رمز إعادة التعيين غير صالح أو منتهي الصلاحية"
+  },
+  "messages": {
+    "password-reset-success": "تم إعادة تعيين كلمة المرور بنجاح",
+    "password-changed-success": "تم تغيير كلمة المرور بنجاح",
+    "user-created-success": "تم إنشاء المستخدم بنجاح",
+    "user-deleted-success": "تم حذف المستخدم بنجاح",
+    "welcome-admin": "مرحبًا، المسؤول!",
+    "guest-access-ok": "الوصول كضيف أو أعلى مسموح",
+    "temp-password-sent": "تم تعيين كلمة مرور مؤقتة وإرسال البريد الإلكتروني إذا تم التكوين",
+    "reset-email-sent": "إذا كان هناك حساب بهذا البريد الإلكتروني، فسيتم إرسال كلمة مرور مؤقتة.",
+    "reset-email-sent-if-exists": "إذا كان هناك حساب بهذا البريد الإلكتروني، فسيتم إرسال رمز إعادة تعيين كلمة المرور."
+  },
+  "validation": {
+    "current-password-required": "كلمة المرور الحالية وكلمة المرور الجديدة مطلوبتان",
+    "email-newpassword-required": "البريد الإلكتروني وكلمة المرور الجديدة مطلوبان",
+    "email-code-newpassword-required": "البريد الإلكتروني والرمز وكلمة المرور الجديدة مطلوبة"
+  }
+}
+

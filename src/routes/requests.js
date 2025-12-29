@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { translate } = require('../utils/i18n');
 
 // Simple in-memory store for requests (for testing)
 const requests = [];
@@ -7,7 +8,12 @@ const requests = [];
 // Create a new request
 router.post('/', (req, res) => {
   const { userId, title, description, priority } = req.body || {};
-  if (!userId || !title) return res.status(400).json({ error: 'userId and title are required' });
+  if (!userId || !title) {
+    return res.status(400).json({ 
+      error: 'userid-title-required', 
+      message: translate(req, 'errors.userid-title-required') 
+    });
+  }
 
   const newReq = {
     id: `req_${requests.length + 1}`,

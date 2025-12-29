@@ -1,0 +1,43 @@
+{
+  "errors": {
+    "email-already-in-use": "Email is already registered",
+    "weak-password": "Password must be at least 8 characters long and include at least one uppercase letter and one special character",
+    "invalid-email": "Invalid email format",
+    "user-not-found": "No account exists for that email",
+    "wrong-password": "The password is incorrect",
+    "email-required": "Email is required",
+    "password-required": "Password is required",
+    "fullname-required": "Full name is required",
+    "fields-required": "Full name, email and password are required",
+    "not-authenticated": "Not authenticated",
+    "forbidden": "Forbidden: Admin access required",
+    "insufficient-role": "Forbidden: insufficient role",
+    "missing-auth-token": "Missing Authorization token",
+    "invalid-token": "Invalid or expired token",
+    "home-content-not-found": "home_content not found",
+    "item-not-found": "item not found",
+    "not-found": "not_found",
+    "userid-title-required": "userId and title are required",
+    "something-went-wrong": "Something went wrong!",
+    "postgres-required": "PostgreSQL database is required",
+    "invalid-or-expired-code": "Invalid or expired reset code",
+    "rate-limit-exceeded": "Please wait {{minutes}} minute(s) before requesting a new reset code"
+  },
+  "messages": {
+    "password-reset-success": "Password reset successfully",
+    "password-changed-success": "Password changed successfully",
+    "user-created-success": "User created successfully",
+    "user-deleted-success": "User deleted successfully",
+    "welcome-admin": "Welcome, admin!",
+    "guest-access-ok": "Guest or higher access OK",
+    "temp-password-sent": "Temporary password set and email sent if configured",
+    "reset-email-sent": "If an account with that email exists, a temporary password has been sent.",
+    "reset-email-sent-if-exists": "If an account with that email exists, a password reset code has been sent."
+  },
+  "validation": {
+    "current-password-required": "currentPassword and newPassword are required",
+    "email-newpassword-required": "email and newPassword are required",
+    "email-code-newpassword-required": "email, code and newPassword are required"
+  }
+}
+

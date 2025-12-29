@@ -92,6 +92,65 @@
 
 ---
 
+
+### POST `/api/auth/password/forgot`
+**Description:** Request a password reset for a user account. The server will check whether the email exists and (if so) generate a one-time numeric reset code and email it to the user. For security the endpoint returns a neutral success message whether or not the email exists.
+**Authentication:** None (Public)
+**Request Body:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+**Behavior:**
+- If the email exists the server generates a 6-digit code (e.g. `123456`), stores it temporarily (15 minute expiry) and sends it to the user's email address.
+- To avoid account enumeration the server responds with a 200-level message regardless of whether the email exists.
+
+**Response (200):**
+```json
+{
+  "message": "If an account with that email exists, a reset code has been sent."
+}
+```
+
+**Notes:**
+- The reset code is valid for 15 minutes and is one-time use.
+- Implementation path: `src/auth/controllers/passwordController.js` and route `POST /api/auth/password/forgot`.
+
+
+### POST `/api/auth/password/confirm`
+**Description:** Confirm the reset code and set a new password. This is a public endpoint that accepts the email, the code received by email, and the desired new password.
+**Authentication:** None (Public)
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "code": "123456",
+  "newPassword": "NewStrongPassword1!"
+}
+```
+**Behavior:**
+- Validates the code for the email and expiry. If valid and the new password meets policy, updates the user's password and consumes the code.
+
+**Response (200):**
+```json
+{
+  "message": "Password changed successfully."
+}
+```
+
+**Errors:**
+- `400` - invalid-or-expired-code
+- `400` - weak-password
+- `404` - user-not-found
+
+**Notes:**
+- Password policy enforced: minimum length and character requirements (see implementation).
+- Implementation path: `src/auth/controllers/passwordController.js` route `POST /api/auth/password/confirm`.
+
+
+---
+
 ### GET `/api/auth/profile`
 **Description:** Get current user's profile (minimal)  
 **Authentication:** Required (Bearer token)  
@@ -241,10 +300,62 @@ All endpoints require authentication: `Authorization: Bearer <token>`
 
 ## 👥 Admin - User Management
 
-All endpoints require authentication: `Authorization: Bearer <admin_or_superadmin_token>`
+All endpoints require authentication: `Authorization: Bearer <admin_token>` (role 0)
+
+### POST `/api/auth/admin/users`
+**Description:** Create a new user (including admins)  
+**Request Body:**
+```json
+{
+  "name": "New Admin",           // or "fullName"
+  "email": "newadmin@example.com",
+  "password": "SecurePassword123!",
+  "role": 0,                     // 0=admin, 1=trusted, 2=common, 3=betrug (optional, default: 2)
+  "status": "active",            // optional, default: "pending"
+  "phoneNumber": "optional",
+  "additionalPhone": "optional",
+  "location": "optional",
+  "services": "optional",
+  "servicePaymentMethods": "optional",
+  "referenceNumber": "optional",
+  "moneyTransferServices": "optional"
+}
+```
+**Response (201):**
+```json
+{
+  "user": {
+    "id": "user_xxx",
+    "email": "newadmin@example.com",
+    "fullName": "New Admin",
+    "role": 0,
+    "status": "active",
+    "isApproved": false
+  }
+}
+```
+**Errors:**
+- `400` - weak-password (password must be 8+ chars, 1 uppercase, 1 special char)
+- `409` - email-already-in-use
+
+**Example - Create Admin:**
+```bash
+curl -X POST http://localhost:3000/api/auth/admin/users \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ADMIN_TOKEN" \
+  -d '{
+    "name": "New Admin",
+    "email": "newadmin@example.com",
+    "password": "SecurePassword123!",
+    "role": 0
+  }'
+```
+
+---
 
 ### GET `/api/auth/admin/users`
-**Description:** List all users (paginated)  
+**Description:** List all users (paginated) - Returns user list with essential fields  
+**Authentication:** Required (Admin role 0)  
 **Query Parameters:**
 - `limit` (optional, default: 100) - Number of users to return
 - `offset` (optional, default: 0) - Pagination offset
@@ -255,21 +366,164 @@ All endpoints require authentication: `Authorization: Bearer <admin_or_superadmi
   "users": [
     {
       "id": "user_xxx",
-      "email": "...",
-      "fullName": "...",
-      "role": "...",
-      "status": "...",
-      ...
+      "email": "user@example.com",
+      "fullName": "User Name",
+      "displayName": "User Display Name",
+      "phoneNumber": "009725666565365",
+      "additionalPhone": "0592487533",
+      "location": "Gaza",
+      "services": ["Mobile Development", "Web Development", "Money Transfer"],
+      "moneyTransferServices": ["سحب الأموال", "إيداع الأموال"],
+      "role": 2,
+      "status": "active",
+      "applicationStatus": "pending",
+      "applicationType": "trusted_user",
+      "appliedDate": "2024-01-01T00:00:00.000Z",
+      "reviewedAt": null,
+      "approvalDate": null,
+      "isTrustedUser": true,
+      "addedToTrustedAt": "2024-12-18T14:52:59.000Z",
+      "addedToTrustedTable": true,
+      "isActive": true,
+      "isApproved": true,
+      "isBlocked": false,
+      "isVisible": false,
+      "accountCreated": true,
+      "verification": {
+        "emailVerified": true,
+        "phoneVerified": true,
+        "documentsSubmitted": false,
+        "locationVerified": true
+      },
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "lastUpdated": "2024-12-26T22:21:29.000Z",
+      "lastModificationDate": "2024-12-22T18:33:49.000Z",
+      "joinedDate": "2024-01-01T00:00:00.000Z",
+      "statistics": {
+        "joinedDate": "2024-01-01T00:00:00.000Z",
+        "rating": 0,
+        "totalReviews": 0
+      },
+      "subscription": {
+        "status": "active",
+        "planName": "Gold",
+        "expiresAt": "2026-01-25T22:51:58.000Z"
+      },
+      "referenceNumber": "",
+      "firebaseUid": "2sKNwIhACzbldx0DNpPgMaswnHB2",
+      "applicationId": null,
+      "actionBy": null,
+      "actionType": null,
+      "actionReason": null,
+      "lastActionAt": null,
+      "reviewedBy": null,
+      "lastModifiedBy": null,
+      "movedToTrustedAt": "2024-12-18T14:52:59.000Z",
+      "lastDocumentSubmissionDate": null,
+      "hasPendingDocumentRequests": false,
+      "documentConfirmations": null,
+      "permissions": {
+        "canAccessDashboard": true,
+        "canEditProfile": true,
+        "canManagePrivacy": false,
+        "canViewAnalytics": false,
+        "showMyProfile": true
+      },
+      "privacySettings": {
+        "showAddress": true,
+        "showDescription": true,
+        "showEmail": false,
+        "showLocation": true,
+        "showPhone": true,
+        "showProfile": true,
+        "showServices": true,
+        "showTelegram": true,
+        "showWorkingHours": true
+      },
+      "publicProfile": {
+        "address": "",
+        "bio": "",
+        "city": "",
+        "description": "",
+        "displayName": "Ahed Eid",
+        "email": "ahed2@gmail.com",
+        "fullName": "",
+        "location": "Gaza",
+        "phone": "0592487533",
+        "profileImageUrl": "",
+        "serviceProvider": "Beruftsadsdasdasdsad"
+      }
     },
     ...
   ]
 }
 ```
+**Fields:**
+- `id` - User ID
+- `email` - User email address
+- `fullName` - User's full name
+- `displayName` - User's display name
+- `phoneNumber` - User's primary phone number (nullable)
+- `additionalPhone` - User's additional phone number (nullable)
+- `location` - User's location/city (nullable)
+- `services` - Array of services selected by user (nullable)
+- `moneyTransferServices` - Array of money transfer services (nullable)
+- `role` - User role (0=admin, 1=trusted, 2=common, 3=betrug)
+- `status` - User status (e.g., "active", "pending", "approved")
+- `applicationStatus` - Application status
+- `applicationType` - Type of application (nullable)
+- `appliedDate` - Date when application was submitted
+- `reviewedAt` - Date when application was reviewed (nullable)
+- `approvalDate` - Date when user was approved (nullable)
+- `isTrustedUser` - Whether user is a trusted user (boolean)
+- `addedToTrustedAt` - Date when user was added to trusted table (nullable)
+- `addedToTrustedTable` - Whether user was added to trusted table (boolean)
+- `isActive` - Whether user account is active (boolean)
+- `isApproved` - Whether user is approved (boolean)
+- `isBlocked` - Whether user is blocked (boolean)
+- `isVisible` - Whether user profile is visible (boolean)
+- `accountCreated` - Whether account was created (boolean)
+- `verification` - Verification status object:
+  - `emailVerified` - Email verification status
+  - `phoneVerified` - Phone verification status
+  - `documentsSubmitted` - Documents submission status
+  - `locationVerified` - Location verification status
+- `createdAt` - Account creation date
+- `lastUpdated` - Last update timestamp
+- `lastModificationDate` - Last modification date (nullable)
+- `joinedDate` - Date when user joined
+- `statistics` - User statistics object:
+  - `joinedDate` - Join date
+  - `rating` - User rating
+  - `totalReviews` - Total number of reviews
+- `subscription` - Subscription information (nullable)
+- `referenceNumber` - Reference number (nullable)
+- `firebaseUid` - Firebase UID (nullable)
+- `applicationId` - Application ID reference (nullable)
+- `actionBy` - Who performed the last action (nullable)
+- `actionType` - Type of last action (nullable)
+- `actionReason` - Reason for last action (nullable)
+- `lastActionAt` - Timestamp of last action (nullable)
+- `reviewedBy` - Who reviewed the user (nullable)
+- `lastModifiedBy` - Who last modified the user (nullable)
+- `movedToTrustedAt` - Date when user was moved to trusted (nullable)
+- `lastDocumentSubmissionDate` - Last document submission date (nullable)
+- `hasPendingDocumentRequests` - Whether user has pending document requests (boolean)
+- `documentConfirmations` - Document confirmation data (nullable, object)
+- `permissions` - User permissions object (nullable):
+  - `canAccessDashboard`, `canEditProfile`, `canManagePrivacy`, `canViewAnalytics`, `showMyProfile`
+- `privacySettings` - Privacy settings object (nullable):
+  - `showAddress`, `showDescription`, `showEmail`, `showLocation`, `showPhone`, `showProfile`, `showServices`, `showTelegram`, `showWorkingHours`
+- `publicProfile` - Public profile information (nullable, object):
+  - `address`, `bio`, `city`, `description`, `displayName`, `email`, `fullName`, `location`, `phone`, `profileImageUrl`, `serviceProvider`
+
+**Note:** This endpoint returns essential fields for the admin list view. For full user details including complete profile, use `GET /api/auth/admin/users/:id`
 
 ---
 
 ### GET `/api/auth/admin/users/:id`
-**Description:** Get a specific user by ID  
+**Description:** Get full details of a specific user by ID  
+**Authentication:** Required (Admin role 0)  
 **Parameters:**
 - `id` - User ID
 **Response:**
@@ -277,15 +531,23 @@ All endpoints require authentication: `Authorization: Bearer <admin_or_superadmi
 {
   "user": {
     "id": "user_xxx",
-    "email": "...",
-    "fullName": "...",
-    "role": "...",
-    "status": "...",
-    "profile": { ... },
+    "email": "user@example.com",
+    "fullName": "User Name",
+    "role": 2,
+    "status": "active",
+    "profile": {
+      // Full profile data
+    },
+    "phoneNumber": "...",
+    "location": "...",
+    "services": {...},
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z",
     ...
   }
 }
 ```
+**Note:** This endpoint returns the complete user profile with all data. Use `GET /api/auth/admin/users` for a simplified list.
 **Errors:**
 - `404` - user-not-found
 
@@ -298,11 +560,11 @@ All endpoints require authentication: `Authorization: Bearer <admin_or_superadmi
 **Request Body:**
 ```json
 {
-  "role": "admin",           // optional
+  "role": 0,                 // optional: 0=admin, 1=trusted, 2=common, 3=betrug
   "status": "active",        // optional
   "profile": { ... },         // optional
   "fullName": "...",          // optional
-  "email": "...",             // optional
+  "password": "...",          // optional (will be hashed)
   ...
 }
 ```
@@ -312,11 +574,37 @@ All endpoints require authentication: `Authorization: Bearer <admin_or_superadmi
   "user": {
     "id": "user_xxx",
     "email": "...",
-    "role": "admin",
+    "role": 0,
     "status": "active",
     ...
   }
 }
+```
+
+---
+
+### DELETE `/api/auth/admin/users/:id`
+**Description:** Delete a user  
+**Authentication:** Required (Admin role 0)  
+**Parameters:**
+- `id` - User ID
+**Response (200):**
+```json
+{
+  "message": "User deleted successfully",
+  "deleted": {
+    "id": "user_xxx",
+    "deleted": true
+  }
+}
+```
+**Errors:**
+- `404` - user-not-found
+
+**Example:**
+```bash
+curl -X DELETE http://localhost:3000/api/auth/admin/users/user_xxx \
+  -H "Authorization: Bearer ADMIN_TOKEN"
 ```
 
 ---
@@ -558,11 +846,11 @@ Authorization: Bearer <jwt_token>
 | Health | 1 | ✅ | ❌ | ❌ |
 | Authentication | 5 | 2 | 3 | 1 |
 | User Profile | 5 | ❌ | ✅ | ❌ |
-| Admin Users | 3 | ❌ | ❌ | ✅ |
+| Admin Users | 5 | ❌ | ❌ | ✅ |
 | Requests | 2 | ✅ | ❌ | ❌ |
 | Content (Read) | 3 | ✅ | ❌ | ❌ |
 | Content (Write) | 4 | ❌ | ❌ | ✅ |
-| **Total** | **25** | **8** | **11** | **8** |
+| **Total** | **27** | **8** | **11** | **10** |
 
 ---
 
