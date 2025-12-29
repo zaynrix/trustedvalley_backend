@@ -2,166 +2,37 @@
 
 Backend مبني بـ Node.js مع Apache Kafka لمشروع Flutter Platform.
 
-## 📋 المتطلبات
+This repository is a Node.js backend built to work with a Flutter frontend and Apache Kafka. It uses PostgreSQL for persistent user/auth data and provides JWT-based authentication with role-based access control (0: Admin, 1: Trusted User, 2: Common User, 3: Betrug User).
 
-- Node.js (v18 أو أحدث) ✅ منصب عندك
-- Kafka & Zookeeper (اختياري للتطوير)
-- VS Code ✅ منصب عندك
+## 📋 المتطلبات / Prerequisites
 
-## 🎯 الـ Architecture
+- Node.js (v18 أو أحدث / v18 or later) ✅
+- PostgreSQL (running database)
+- Kafka & Zookeeper (optional for development)
+- VS Code ✅
 
-```
-Producers (API) → Kafka Broker → Consumers (Services)
-     ↓                               ↓
-  REST API                    Notifications
-                              Analytics
-```
+## 🔧 Tech Stack
 
-## 📦 التثبيت
+- **Node.js** (>=18)
+- **Express.js** - Web framework
+- **PostgreSQL** - Database with JSONB for flexible data storage
+- **bcrypt** - Password hashing
+- **jsonwebtoken** - JWT authentication
+- **kafkajs** - Kafka integration (optional)
+- **i18next** - Internationalization (English, Arabic, German)
+- **Firebase Admin SDK** - For Firestore migration
 
-### 1. نصب الـ Dependencies
+## 📦 التثبيت / Installation
 
-```bash
-npm install
-```
-
-### 2. إعداد Kafka (اختياري - للمرحلة الأولى)
-
-يمكنك تشغيل المشروع بدون Kafka في البداية للتجربة، أو نصب Kafka بـ Docker:
-
-```bash
-# إذا عندك Docker
-docker-compose up -d
-```
-
-**ملاحظة:** إذا ما عندك Kafka، المشروع راح يشتغل لكن راح تشوف errors في الـ console. لا تقلق، هذا طبيعي في البداية.
-
-## 🚀 تشغيل المشروع
-
-### Development Mode (مع auto-reload)
-```bash
-npm run dev
-```
-
-### Production Mode
-```bash
-npm start
-```
-
-السيرفر راح يشتغل على: **http://localhost:3000**
-
-## 📡 API Endpoints
-
-### Authentication
-
-#### تسجيل مستخدم جديد
-```bash
-POST http://localhost:3000/api/auth/register
-Content-Type: application/json
-
-{
-  "name": "Ahmed",
-  "email": "ahmed@example.com",
-  "password": "password123"
-}
-```
-
-#### تسجيل دخول
-```bash
-POST http://localhost:3000/api/auth/login
-Content-Type: application/json
-
-{
-  "email": "ahmed@example.com",
-  "password": "password123"
-}
-```
-
-#### تحديث الملف الشخصي
-```bash
-PUT http://localhost:3000/api/auth/profile
-Content-Type: application/json
-
-{
-  "userId": "user_123",
-  "name": "Ahmed Updated",
-  "email": "newemail@example.com"
-}
-```
-
-### Requests Management
-
-#### إنشاء Request جديد
-```bash
-POST http://localhost:3000/api/requests
-Content-Type: application/json
-
-{
-  "userId": "user_123",
-  "title": "طلب جديد",
-  "description": "تفاصيل الطلب",
-  "priority": "high"
-}
-```
-
-#### تحديث Request
-```bash
-PUT http://localhost:3000/api/requests/req_123
-Content-Type: application/json
-
-{
-  "userId": "user_123",
-  "status": "in-progress"
-}
-```
-
-#### إنهاء Request
-```bash
-DELETE http://localhost:3000/api/requests/req_123
-Content-Type: application/json
-
-{
-  "userId": "user_123"
-}
-```
-
-## 📊 Kafka Topics
-
-المشروع يستخدم 4 Topics:
-
-1. **user-events** - Login, Register, Profile Updates
-2. **request-events** - Create, Update, Complete
-````markdown
-# 🚀 Kafka Backend - Node.js
-
-This repository is a small Node.js backend originally built to work with a Flutter frontend and Apache Kafka. It now uses PostgreSQL for persistent user/auth data and provides JWT-based authentication with role-based access (guest, user, admin, superadmin).
-
-This README covers installation, environment, database migrations & seeds, the authentication contract (register/login) and the lightweight user/profile API that supports lazy loading on the client.
-
-## 🔧 Tech stack
-
-- Node.js (>=18)
-- Express
-- PostgreSQL (JSONB for profile)
-- bcrypt (password hashing)
-- jsonwebtoken (JWT)
-- kafka (optional for producers/consumers)
-
-## Prerequisites
-
-- Node.js and npm
-- PostgreSQL (a running database and a connection URL)
-- Optional: Docker (for Kafka if you use it)
-
-## Quick setup
-
-1. Install dependencies
+### 1. Install Dependencies
 
 ```bash
 npm install
 ```
 
-2. Create a `.env` file (or export env vars). Important variables:
+### 2. Environment Setup
+
+Create a `.env` file:
 
 ```env
 PORT=3000
@@ -169,185 +40,557 @@ DATABASE_URL=postgres://<user>:<pass>@localhost:5432/kafka_backend_db
 JWT_SECRET=your_jwt_secret_here
 KAFKA_BROKER=localhost:9092          # optional
 KAFKA_CLIENT_ID=my-platform          # optional
+
+# Firebase (for migration)
+FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'
+# OR
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 ```
 
-3. Run database migrations (this project includes a small migration runner):
+### 3. Run Database Migrations
 
 ```bash
-# ensure DATABASE_URL is set
+npm run migrate
+# or
 node scripts/run-migrations.js
 ```
 
-4. Run seed script to create initial users (admin + superadmin):
+This creates all necessary tables:
+- `users` - User accounts with profile data
+- `admin_content` - Admin content documents
+- `statistics_items` - Statistics items
+- `activities` - User activities
+- `untrusted_users` - Untrusted users
+- `payment_place_submissions` - Payment submissions
+
+### 4. Seed Initial Users
 
 ```bash
+npm run seed
+# or
 node scripts/seed-users.js
 ```
 
-The seed creates two administrative accounts (if they don't exist):
+Creates default admin accounts:
+- `admin@trustedvalley.com` / `Test123456$`
+- `superadmin@trustedvalley.com` / `Test123456$`
 
-- admin@trustedvalley.com / Test123456$
-- superadmin@trustedvalley.com / Test123456$
+**⚠️ Change these credentials in production!**
 
-Change those credentials after first login in production.
+### 5. Start the Server
 
-5. Start the server
-
-Development (with nodemon if available):
-
+**Development Mode (with auto-reload):**
 ```bash
 npm run dev
 ```
 
-Production
-
+**Production Mode:**
 ```bash
 npm start
 ```
 
-Server URL: http://localhost:3000 (default)
+Server runs on: **http://localhost:3000**
 
-## Database note
+## 🌍 Internationalization (i18n)
 
-This project requires `DATABASE_URL` to be set. If it is not set, auth-related operations will throw an error containing `postgres-required`.
+The API supports **3 languages**:
+- **English (en)** - Default
+- **Arabic (ar)** - العربية
+- **German (de)** - Deutsch
 
-## API: Authentication contract
+### Language Detection
 
-All auth endpoints are under `/api/auth`.
+The API detects language from:
+1. Query parameter: `?lang=ar`
+2. HTTP header: `Accept-Language: de`
+3. Cookie: `i18next=ar`
 
-### Register — POST /api/auth/register
+**Example:**
+```bash
+curl "http://localhost:3000/api/auth/login?lang=ar" \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password"}'
+```
 
-Request body (example):
+All error messages and responses are automatically translated based on the user's language preference.
 
-```json
+## 📡 API Endpoints
+
+### 🔐 Authentication
+
+#### Register - POST `/api/auth/register`
+Register a new user account.
+
+```bash
+POST http://localhost:3000/api/auth/register
+Content-Type: application/json
+
 {
   "name": "Ahmed",
   "email": "ahmed@example.com",
-  "password": "Password123!"
+  "password": "Password123!",
+  "phoneNumber": "optional",
+  "location": "optional",
+  "services": ["service1", "service2"]
 }
 ```
 
-Behavior:
-- Password policy: minimum 8 characters, at least one uppercase letter, and at least one special character. If the policy fails, the response includes `error: "weak-password"` and a human message.
-- Requires `DATABASE_URL`.
-
-Successful response (201):
-
+**Response (201):**
 ```json
 {
-  "token": "<jwt token>",
+  "token": "<jwt_token>",
   "user": {
     "id": "user_xxx",
     "email": "ahmed@example.com",
     "fullName": "Ahmed",
-    "role": "user",
-    "status": "pending",
-    "isApproved": false,
-    "profileImageUrl": "..."
+    "role": 2,
+    "status": "pending"
   }
 }
 ```
 
-Note: the `user` object returned by register and login is intentionally minimal (top-level fields only). The full profile is available at the lazy endpoints below.
+#### Login - POST `/api/auth/login`
+Login with email and password.
 
-### Login — POST /api/auth/login
+```bash
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
 
-Request body:
-
-```json
 {
   "email": "ahmed@example.com",
   "password": "Password123!"
 }
 ```
 
-Successful response (200):
-
+**Response (200):**
 ```json
 {
-  "token": "<jwt token>",
+  "token": "<jwt_token>",
   "user": {
     "id": "user_xxx",
     "email": "ahmed@example.com",
     "fullName": "Ahmed",
-    "role": "user",
-    "status": "pending",
-    "isApproved": false
+    "role": 2,
+    "status": "pending"
   }
 }
 ```
 
-If credentials are wrong, responses include `error: "user-not-found"` (404) or `error: "wrong-password"` (401).
+#### Get Profile - GET `/api/auth/profile`
+Get current user's profile (requires authentication).
 
-## User / profile lazy endpoints
-
-These endpoints require `Authorization: Bearer <token>` and are mounted under `/api/users`.
-
-- GET /api/users/me/profile — full profile JSON (JSONB stored in DB)
-- GET /api/users/me/contact — contact subset (phone/email visibility)
-- GET /api/users/me/verification — verification flags (emailVerified, phoneVerified)
-- GET /api/users/me/services — services/payment methods/moneyTransfer info
-
-Example header:
-
-```http
+```bash
+GET http://localhost:3000/api/auth/profile
 Authorization: Bearer <token>
 ```
 
-These endpoints return pruned JSON with empty/null fields removed so the client gets a compact payload.
+---
 
-## Admin endpoints
+### 🔑 Password Management
 
-Admin routes are under `/api/auth/admin` and require an admin or superadmin token.
+#### Forgot Password - POST `/api/auth/password/forgot`
+Request a password reset code (sent via email).
 
-- GET /api/auth/admin/users — list users (limit/offset query)
-- GET /api/auth/admin/users/:id — get user by id
-- PUT /api/auth/admin/users/:id — update user (role/status/profile)
+```bash
+POST http://localhost:3000/api/auth/password/forgot
+Content-Type: application/json
 
-## Requests endpoints
+{
+  "email": "user@example.com"
+}
+```
 
-Basic request creation/updating lives under `/api/requests` (examples exist in the earlier README content and in `test/test_api.js`).
+**Response (200):**
+```json
+{
+  "message": "If an account with that email exists, a password reset code has been sent."
+}
+```
 
-## Tests / smoke checks
+**Note:** Rate limited - can only request once every 15 minutes.
 
-Run the quick smoke script used during development:
+#### Confirm Reset - POST `/api/auth/password/confirm`
+Confirm reset with code and set new password.
 
+```bash
+POST http://localhost:3000/api/auth/password/confirm
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "code": "123456",
+  "newPassword": "NewPassword123!"
+}
+```
+
+**Test Code:** Use `1232456` for testing (always works, no email required).
+
+#### Change Password - POST `/api/auth/password/change`
+Change own password (requires authentication and current password).
+
+```bash
+POST http://localhost:3000/api/auth/password/change
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "currentPassword": "OldPassword123!",
+  "newPassword": "NewPassword123!"
+}
+```
+
+#### Reset Password (Admin) - POST `/api/auth/password/reset`
+Admin can reset any user's password (requires admin role).
+
+```bash
+POST http://localhost:3000/api/auth/password/reset
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "newPassword": "NewPassword123!"
+}
+```
+
+---
+
+### 👤 User Profile Endpoints
+
+All require `Authorization: Bearer <token>`.
+
+#### Get Full Profile - GET `/api/users/me/profile`
+Get complete user profile data.
+
+```bash
+GET http://localhost:3000/api/users/me/profile
+Authorization: Bearer <token>
+```
+
+#### Get Contact Info - GET `/api/users/me/contact`
+Get contact information subset.
+
+```bash
+GET http://localhost:3000/api/users/me/contact
+Authorization: Bearer <token>
+```
+
+#### Get Verification Status - GET `/api/users/me/verification`
+Get verification flags (email, phone, documents).
+
+```bash
+GET http://localhost:3000/api/users/me/verification
+Authorization: Bearer <token>
+```
+
+#### Get Services - GET `/api/users/me/services`
+Get services, payment methods, and money transfer info.
+
+```bash
+GET http://localhost:3000/api/users/me/services
+Authorization: Bearer <token>
+```
+
+#### Get Raw Data - GET `/api/users/me/data`
+Get raw stored profile with metadata.
+
+```bash
+GET http://localhost:3000/api/users/me/data
+Authorization: Bearer <token>
+```
+
+---
+
+### 👥 Admin Endpoints
+
+All admin endpoints require `Authorization: Bearer <admin_token>` (role 0).
+
+#### List Users - GET `/api/auth/admin/users`
+Get paginated list of all users with essential fields.
+
+```bash
+GET http://localhost:3000/api/auth/admin/users?limit=50&offset=0
+Authorization: Bearer <admin_token>
+```
+
+**Query Parameters:**
+- `limit` (optional, default: 100) - Number of users
+- `offset` (optional, default: 0) - Pagination offset
+
+**Response:**
+```json
+{
+  "users": [
+    {
+      "id": "user_xxx",
+      "email": "user@example.com",
+      "fullName": "User Name",
+      "phoneNumber": "009725666565365",
+      "location": "Gaza",
+      "services": ["Mobile Development", "Web Development"],
+      "role": 2,
+      "status": "active",
+      "applicationStatus": "pending",
+      "appliedDate": "2024-01-01T00:00:00.000Z",
+      "isTrustedUser": false,
+      "isActive": true,
+      "isApproved": true,
+      "verification": {
+        "emailVerified": true,
+        "phoneVerified": true
+      }
+    }
+  ]
+}
+```
+
+#### Get User by ID - GET `/api/auth/admin/users/:id`
+Get full details of a specific user.
+
+```bash
+GET http://localhost:3000/api/auth/admin/users/user_123
+Authorization: Bearer <admin_token>
+```
+
+#### Create User - POST `/api/auth/admin/users`
+Create a new user (including other admins).
+
+```bash
+POST http://localhost:3000/api/auth/admin/users
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "name": "New Admin",
+  "email": "newadmin@example.com",
+  "password": "SecurePassword123!",
+  "role": 0,
+  "status": "active"
+}
+```
+
+**Role Options:**
+- `0` - Admin
+- `1` - Trusted User
+- `2` - Common User (default)
+- `3` - Betrug User
+
+#### Update User - PUT `/api/auth/admin/users/:id`
+Update user (role, status, profile).
+
+```bash
+PUT http://localhost:3000/api/auth/admin/users/user_123
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "role": 1,
+  "status": "active",
+  "fullName": "Updated Name"
+}
+```
+
+#### Delete User - DELETE `/api/auth/admin/users/:id`
+Delete a user.
+
+```bash
+DELETE http://localhost:3000/api/auth/admin/users/user_123
+Authorization: Bearer <admin_token>
+```
+
+---
+
+### 📄 Content Endpoints
+
+#### Get Home Content - GET `/api/content/home`
+Get home page content.
+
+```bash
+GET http://localhost:3000/api/content/home
+```
+
+#### Get Statistics - GET `/api/content/statistics`
+Get all statistics items.
+
+```bash
+GET http://localhost:3000/api/content/statistics
+```
+
+#### Get Statistics Item - GET `/api/content/statistics/:id`
+Get a specific statistics item.
+
+```bash
+GET http://localhost:3000/api/content/statistics/stat_123
+```
+
+**Admin Only - Content Management:**
+
+#### Create/Update Home Content - POST `/api/content/home`
+```bash
+POST http://localhost:3000/api/content/home
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "title": "Welcome",
+  "content": "..."
+}
+```
+
+#### Create Statistics Item - POST `/api/content/statistics`
+```bash
+POST http://localhost:3000/api/content/statistics
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "label": "Total Users",
+  "value": "1000"
+}
+```
+
+#### Update Statistics Item - PUT `/api/content/statistics/:id`
+```bash
+PUT http://localhost:3000/api/content/statistics/stat_123
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "value": "1500"
+}
+```
+
+#### Delete Statistics Item - DELETE `/api/content/statistics/:id`
+```bash
+DELETE http://localhost:3000/api/content/statistics/stat_123
+Authorization: Bearer <admin_token>
+```
+
+---
+
+### 📝 Requests Endpoints
+
+#### Create Request - POST `/api/requests`
+```bash
+POST http://localhost:3000/api/requests
+Content-Type: application/json
+
+{
+  "userId": "user_123",
+  "title": "New Request",
+  "description": "Request details",
+  "priority": "high"
+}
+```
+
+#### List Requests - GET `/api/requests`
+```bash
+GET http://localhost:3000/api/requests
+```
+
+---
+
+## 🔄 Database Migrations
+
+### Run All Migrations
+```bash
+npm run migrate
+```
+
+### Migrate from Firestore
+```bash
+npm run migrate:firestore
+```
+
+This migrates data from Firebase Firestore to PostgreSQL:
+- `admin_content` → `admin_content` table
+- `statistics_items` → `statistics_items` table
+- `users` → `users` table
+- `trusted_users` → merged into `users` table (role=1)
+- `user_applications` → merged into `users` table
+- `activities` → `activities` table
+- `untrusted_users` → `untrusted_users` table
+- `payment_place_submissions` → `payment_place_submissions` table
+- `admins` → merged into `users` table (role=0)
+
+## 🛠️ Utility Scripts
+
+### Add Admin User
+```bash
+npm run add-admin <email> <password> <name>
+# Example:
+npm run add-admin admin@example.com SecurePass123! "Admin Name"
+```
+
+### Reset User Password
+```bash
+npm run reset-password <email> <new_password>
+# Example:
+npm run reset-password user@example.com NewPassword123!
+```
+
+### Remove All Admins
+```bash
+npm run remove-admins
+```
+
+## 📊 Role System
+
+Users have numeric roles:
+- **0** - Admin (full access)
+- **1** - Trusted User
+- **2** - Common User (default)
+- **3** - Betrug User
+
+## 🌐 Translation Support
+
+All API responses support translations. See [TRANSLATION_GUIDE.md](./TRANSLATION_GUIDE.md) for details.
+
+**Supported Languages:**
+- English (en) - Default
+- Arabic (ar)
+- German (de)
+
+## 📚 Documentation
+
+- [API_ENDPOINTS.md](./API_ENDPOINTS.md) - Complete API documentation
+- [TRANSLATION_GUIDE.md](./TRANSLATION_GUIDE.md) - Translation guide
+- [FIRESTORE_MIGRATION.md](./FIRESTORE_MIGRATION.md) - Firestore migration guide
+- [HOW_TO_ADD_ADMIN.md](./HOW_TO_ADD_ADMIN.md) - Admin user management
+- [HOW_TO_RESET_PASSWORD.md](./HOW_TO_RESET_PASSWORD.md) - Password reset guide
+
+## 🧪 Testing
+
+Run smoke tests:
 ```bash
 node test/test_api.js
 ```
 
-It exercises health, register, login, and a simple create request flow.
+## 🐛 Troubleshooting
 
-## Troubleshooting
+- **`postgres-required` errors:** Ensure `DATABASE_URL` is set in `.env`
+- **Port 3000 in use:** Change `PORT` in `.env` or kill the process: `lsof -i :3000`
+- **Migration errors:** Check PostgreSQL permissions and database exists
+- **Translation not working:** Ensure `i18next` middleware is loaded before routes
 
-- If you see `postgres-required` errors: make sure `DATABASE_URL` is exported.
-- If port 3000 is in use: change `PORT` in `.env` or kill the other process (`lsof -i :3000`).
-- If migrations fail: check your Postgres user permissions and that the database exists.
+## 🚀 Deployment
 
-## Next improvements (ideas)
+**Note:** GitHub Pages only hosts static websites. For Node.js APIs, consider:
+- **Heroku** - Easy deployment
+- **Railway** - Simple setup
+- **Render** - Free tier available
+- **Vercel** - Serverless functions
+- **AWS/GCP/Azure** - Enterprise solutions
 
-- Add integration tests asserting the auth JSON contract.
-- Add rate-limiting and audit logs for admin endpoints.
-- Add role management UI or an admin CLI.
+## 📝 License
 
-## Helpful commands recap
+ISC
 
-```bash
-# install
-npm install
+## 👥 Contributors
 
-# run migrations (requires DATABASE_URL)
-node scripts/run-migrations.js
+- Initial setup and development
 
-# seed users (create admin & superadmin)
-node scripts/seed-users.js
+---
 
-# run smoke tests
-node test/test_api.js
-
-# start server
-npm run dev   # dev
-npm start     # prod
-```
-
-````
+For detailed API documentation, see [API_ENDPOINTS.md](./API_ENDPOINTS.md)
